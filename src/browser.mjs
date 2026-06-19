@@ -1,20 +1,18 @@
 import os from "node:os";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { chromium } from "playwright";
 import { buildEditorDocument, buildEditorSegments } from "./render.mjs";
 
 const COMPOSE_URL = "https://x.com/compose/articles";
+const DEFAULT_GSTACK_X_PROFILE = path.join(os.homedir(), ".gstack", "x-browser-profile");
+const DEFAULT_GSTACK_X_STATE = path.join(os.homedir(), ".gstack", "x-browser", "browse.json");
 
 export async function createDraft(article, options = {}) {
-  const profileDir = path.resolve(
-    options.profileDir || path.join(os.homedir(), ".x-article-drafter", "chrome-profile"),
-  );
-  const context = await chromium.launchPersistentContext(profileDir, {
-    headless: false,
-    channel: options.channel === "chromium" ? undefined : options.channel || "chrome",
-    viewport: null,
-  });
+  const browserOptions = await resolveBrowserOptions(options);
+  const context = await launchDraftContext(browserOptions);
+  const { profileDir } = browserOptions;
   const page = context.pages()[0] || (await context.newPage());
 
   try {
@@ -43,6 +41,65 @@ export async function createDraft(article, options = {}) {
     await context.close().catch(() => {});
     throw error;
   }
+}
+
+export async function resolveBrowserOptions(options = {}) {
+  const profileDir = path.resolve(options.profileDir || process.env.GSTACK_X_PROFILE || DEFAULT_GSTACK_X_PROFILE);
+  const sharedProfileDir = path.resolve(process.env.GSTACK_X_PROFILE || DEFAULT_GSTACK_X_PROFILE);
+  const usesSharedGstackProfile = profileDir === sharedProfileDir;
+  const channel = options.channel || (usesSharedGstackProfile ? "chromium" : "chrome");
+
+  if (usesSharedGstackProfile) {
+    await assertSharedGstackBrowserIsNotRunning(profileDir);
+  }
+
+  return { profileDir, channel, usesSharedGstackProfile };
+}
+
+async function launchDraftContext({ profileDir, channel, usesSharedGstackProfile }) {
+  try {
+    return await chromium.launchPersistentContext(profileDir, {
+      headless: false,
+      channel: channel === "chromium" ? undefined : channel,
+      viewport: null,
+    });
+  } catch (error) {
+    if (usesSharedGstackProfile) {
+      error.message = `${error.message}\n\nThe shared GStack X profile could not be opened. Close the GStack Browser window that uses ${profileDir}, then retry. Chromium profiles cannot be controlled by two browser processes at once.`;
+    }
+    throw error;
+  }
+}
+
+async function assertSharedGstackBrowserIsNotRunning(profileDir) {
+  const stateFile = process.env.GSTACK_X_STATE_FILE || DEFAULT_GSTACK_X_STATE;
+  let state;
+  try {
+    state = JSON.parse(await readFile(stateFile, "utf8"));
+  } catch {
+    return;
+  }
+
+  if (!state?.port) return;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${state.port}/health`, {
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!response.ok) return;
+    const health = await response.json();
+    if (health.status !== "healthy") return;
+  } catch {
+    return;
+  }
+
+  throw new Error(
+    [
+      `The shared GStack X browser is already running and owns ${profileDir}.`,
+      "Close that GStack Browser window before running x-article-drafter, or pass --profile to use a separate profile.",
+      "This avoids launching two Chromium processes against the same X login profile.",
+    ].join(" "),
+  );
 }
 
 async function ensureLoggedIn(page, returnUrl) {

@@ -76,7 +76,8 @@ function printUsage() {
   x-article-drafter preview <article.md> [--output preview.html]
   x-article-drafter draft <article.md> [--draft id-or-url] [--profile dir] [--browser chrome|chromium] [--close]
 
-The draft command creates a cloud draft in X Articles. It never publishes.`);
+The draft command creates a cloud draft in X Articles. It never publishes.
+By default it reuses ~/.gstack/x-browser-profile for the shared X login.`);
 }
 
 main().catch((error) => {

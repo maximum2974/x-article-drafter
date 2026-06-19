@@ -133,7 +133,7 @@ x-article-drafter draft <article.md> --draft https://x.com/compose/articles/edit
 
 This command:
 
-1. Opens Chrome with a persistent profile
+1. Opens a visible Chromium browser with a persistent X profile
 2. Navigates to `x.com/compose/articles`
 3. Creates or opens the specified draft
 4. Fills in the title, uploads the cover image, pastes the body content, and inserts all body images
@@ -152,7 +152,11 @@ The browser will stay open for manual edits. Press Enter to close it...
 
 **First-run login**
 
-The first time you run `draft`, X's login page may appear. Log in manually in the browser window, then press Enter in the terminal. Your session is saved to `~/.x-article-drafter/chrome-profile` and reused on all future runs.
+By default, `draft` reuses the dedicated GStack X profile at `~/.gstack/x-browser-profile`, so it can share the same X login used by other X-focused Codex skills without reading cookies from your everyday Chrome profile.
+
+If X's login page appears, log in manually in the opened browser, then press Enter in the terminal. The session is saved in the dedicated profile and reused on future runs.
+
+Do not run `x-article-drafter` while the GStack X Browser daemon is already open with the same profile. Chromium profiles can only be owned by one browser process at a time. Close the GStack Browser window first, or pass `--profile <dir>` to use a separate profile.
 
 ---
 
@@ -249,8 +253,8 @@ More content here.
 | Option | Description | Default |
 |---|---|---|
 | `--draft <id-or-url>` | Update an existing draft by numeric ID or full edit URL | Creates a new draft |
-| `--profile <dir>` | Path to a custom browser profile directory | `~/.x-article-drafter/chrome-profile` |
-| `--browser chrome\|chromium` | Browser channel to launch | `chrome` |
+| `--profile <dir>` | Path to a custom browser profile directory | `~/.gstack/x-browser-profile` |
+| `--browser chrome\|chromium` | Browser channel to launch | `chromium` for the shared GStack profile, `chrome` for custom profiles |
 | `--close` | Close the browser automatically after the draft is saved | Browser stays open |
 
 ### `preview` options
@@ -280,7 +284,7 @@ Markdown file
      │
      ▼
 ┌─────────────┐
-│   Browser   │ ──▶ Playwright (persistent Chrome profile)
+│   Browser   │ ──▶ Playwright (persistent X profile)
 │  (browser)  │         │
 └─────────────┘         ├── Fill title
                         ├── Upload cover image
@@ -292,7 +296,7 @@ Markdown file
 
 1. **Parse** — reads the Markdown file, extracts frontmatter, tokenizes the body, and validates every block against the supported set.
 2. **Render** — converts blocks to HTML segments; images become unique placeholder tokens so they can be located and replaced in the editor.
-3. **Launch** — opens a non-headless Chrome window with a persistent profile so you can see exactly what is happening.
+3. **Launch** — opens a non-headless browser window with a persistent X profile so you can see exactly what is happening.
 4. **Login** — polls for X logged-in UI surfaces; if none are found within 10 seconds, prompts you to log in manually.
 5. **Fill** — types the title, clicks the cover upload button, pastes the body HTML via a synthetic clipboard event, then iterates over images in reverse order to upload each one in place of its placeholder.
 6. **Verify** — after autosave, scans the editor DOM to confirm every text segment and image count matches expectations.
@@ -320,4 +324,4 @@ Your Markdown file uses a block type that X Articles does not support. Read the 
 
 **The browser opens but nothing is typed**
 
-This usually means Chrome is already running with the same profile. Close all Chrome windows that use the default profile, or pass `--profile` to use a separate directory.
+This usually means another browser process is already running with the same profile. If you use the shared GStack X profile, close the GStack Browser window first. Otherwise pass `--profile` to use a separate directory.
